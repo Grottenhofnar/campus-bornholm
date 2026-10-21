@@ -1,0 +1,7 @@
+@url = http://localhost:7070/api
+
+### Hello world – virker serveren?
+GET {{url}}/hello
+
+### Oversigt over alle endpoints
+GET {{url}}/routes
