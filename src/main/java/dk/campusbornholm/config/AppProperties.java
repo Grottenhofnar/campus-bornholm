@@ -2,6 +2,7 @@ package dk.campusbornholm.config;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Optional;
 import java.util.Properties;
 
 public final class AppProperties {
@@ -21,15 +22,19 @@ public final class AppProperties {
     }
 
     public static String get(String key) {
+        return find(key).orElseThrow(() -> new IllegalStateException("Mangler indstillingen '" + key
+                + "'. Sæt den i config.properties eller som miljøvariabel."));
+    }
+
+    public static Optional<String> find(String key) {
         String env = System.getenv(key);
         if (env != null && !env.isBlank()) {
-            return env;
+            return Optional.of(env);
         }
         String value = PROPS.getProperty(key);
-        if (value == null) {
-            throw new IllegalStateException("Mangler indstillingen '" + key
-                    + "'. Sæt den i config.properties eller som miljøvariabel.");
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
         }
-        return value;
+        return Optional.of(value.trim());
     }
 }

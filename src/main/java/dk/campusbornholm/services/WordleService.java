@@ -1,5 +1,6 @@
 package dk.campusbornholm.services;
 
+import dk.campusbornholm.config.AppClock;
 import dk.campusbornholm.daos.WordDAO;
 import dk.campusbornholm.daos.WordleGameDAO;
 import dk.campusbornholm.dtos.WordDTO;
@@ -71,7 +72,7 @@ public class WordleService {
     }
 
     public WordleGameDTO getTodaysGame(String username) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = AppClock.today();
         wordDAO.getDailyWord(today);
         return gameDAO.getOrCreate(username, today);
     }
@@ -82,7 +83,7 @@ public class WordleService {
             throw new ApiException(400, "'" + guess + "' er ikke et gyldigt ord");
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = AppClock.today();
         WordDTO daily = wordDAO.getDailyWord(today);
         WordleGameDTO game = gameDAO.getOrCreate(username, today);
         if (game.finished()) {

@@ -1,6 +1,6 @@
 package dk.campusbornholm.config;
 
-import dk.campusbornholm.TestUtils;
+import dk.campusbornholm.testutils.TestUtils;
 import dk.campusbornholm.entities.Guess;
 import dk.campusbornholm.entities.News;
 import dk.campusbornholm.entities.Role;
@@ -25,7 +25,7 @@ class HibernateConfigTest {
     @BeforeAll
     static void setUp() {
         assumeTrue(DockerClientFactory.instance().isDockerAvailable(), "Docker kører ikke – testen springes over");
-        emf = HibernateConfig.getEntityManagerFactoryForTest();
+        emf = HibernateTestConfig.getEntityManagerFactory();
         TestUtils.truncateAll(emf);
     }
 
@@ -38,7 +38,7 @@ class HibernateConfigTest {
             Role userRole = new Role("USER");
             em.persist(userRole);
 
-            User user = new User("elias", "hemmeligt");
+            User user = new User("elias", "hemmelig123");
             user.addRole(userRole);
             em.persist(user);
 

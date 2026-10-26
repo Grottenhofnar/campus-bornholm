@@ -3,5 +3,230 @@
 ### Hello world – virker serveren?
 GET {{url}}/hello
 
-### Oversigt over alle endpoints
+### Oversigt over alle endpoints og roller
 GET {{url}}/routes
+
+
+### ===== AUTH =====
+
+### Opret bruger → 201 + token (gemmes som userToken)
+POST {{url}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "elias",
+  "password": "hemmelig123"
+}
+
+> {% client.global.set("userToken", response.body.token); %}
+
+### Login som bruger → 200 + token (gemmes som userToken)
+POST {{url}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "elias",
+  "password": "hemmelig123"
+}
+
+> {% client.global.set("userToken", response.body.token); %}
+
+### Login som admin (ADMIN_USERNAME / ADMIN_PASSWORD fra config.properties) → gemmes som adminToken
+POST {{url}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "3ofKopTUjxePVbGi"
+}
+
+> {% client.global.set("adminToken", response.body.token); %}
+
+### Forkert password → 401
+POST {{url}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "elias",
+  "password": "forkert123"
+}
+
+### Opret samme bruger igen → 409
+POST {{url}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "elias",
+  "password": "hemmelig123"
+}
+
+### Ugyldigt brugernavn og for kort password → 400
+POST {{url}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "e!",
+  "password": "kort"
+}
+
+### Hvem er jeg? (USER) → 200
+GET {{url}}/auth/me
+Authorization: Bearer {{userToken}}
+
+### Hvem er jeg? uden token → 401
+GET {{url}}/auth/me
+
+### Ødelagt token → 401
+GET {{url}}/auth/me
+Authorization: Bearer abc.def.ghi
+
+
+### ===== MENU (åben) =====
+
+### Dagens ret
+GET {{url}}/menu/today
+
+### Ugens menu (mandag–fredag)
+GET {{url}}/menu/week
+
+
+### ===== EVENTS =====
+
+### Events de næste 14 dage (åben)
+GET {{url}}/events
+
+### Events de næste 30 dage (åben)
+GET {{url}}/events?days=30
+
+### Ugyldigt antal dage → 400
+GET {{url}}/events?days=0
+
+### Opret event som admin → 201 (createdBy kommer fra tokenet)
+POST {{url}}/events
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "title": "Fredagsbar",
+  "description": "Øl og musik i kantinen",
+  "location": "Kantinen",
+  "startTime": "2026-10-30T16:00:00",
+  "endTime": "2026-10-30T22:00:00"
+}
+
+> {% client.global.set("eventId", response.body.id); %}
+
+### Opret event uden token → 401
+POST {{url}}/events
+Content-Type: application/json
+
+{
+  "title": "Fredagsbar",
+  "startTime": "2026-10-30T16:00:00"
+}
+
+### Opret event som almindelig bruger → 403
+POST {{url}}/events
+Content-Type: application/json
+Authorization: Bearer {{userToken}}
+
+{
+  "title": "Fredagsbar",
+  "startTime": "2026-10-30T16:00:00"
+}
+
+### Opret event uden titel og med slut før start → 400
+POST {{url}}/events
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "title": "",
+  "startTime": "2026-10-30T16:00:00",
+  "endTime": "2026-10-30T12:00:00"
+}
+
+### Hent det oprettede event (åben)
+GET {{url}}/events/{{eventId}}
+
+### Ret sted på eventet (admin)
+PATCH {{url}}/events/{{eventId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "location": "Aulaen"
+}
+
+### Slet eventet (admin) → 204
+DELETE {{url}}/events/{{eventId}}
+Authorization: Bearer {{adminToken}}
+
+### Event der ikke findes → 404
+GET {{url}}/events/999999
+
+### Id der ikke er et tal → 400
+GET {{url}}/events/abc
+
+
+### ===== NEWS =====
+
+### Alle nyheder, nyeste først (åben)
+GET {{url}}/news
+
+### De 3 nyeste nyheder (åben)
+GET {{url}}/news?limit=3
+
+### Opret nyhed som admin → 201 (forfatter kommer fra tokenet)
+POST {{url}}/news
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "title": "Velkommen til Campus Bornholm",
+  "content": "Nu kan du se menu, events og nyheder samlet ét sted."
+}
+
+> {% client.global.set("newsId", response.body.id); %}
+
+### Opret nyhed som almindelig bruger → 403
+POST {{url}}/news
+Content-Type: application/json
+Authorization: Bearer {{userToken}}
+
+{
+  "title": "Test",
+  "content": "Test"
+}
+
+### Opret nyhed uden indhold → 400
+POST {{url}}/news
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "title": "Kun en titel"
+}
+
+### Ugyldig JSON → 400
+POST {{url}}/news
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "title": "mangler slut
+
+### Hent den oprettede nyhed (åben)
+GET {{url}}/news/{{newsId}}
+
+### Ret titel (admin)
+PATCH {{url}}/news/{{newsId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "title": "Velkommen til den nye campus-side"
+}
+
+### Slet nyheden (admin) → 204
+DELETE {{url}}/news/{{newsId}}
+Authorization: Bearer {{adminToken}}

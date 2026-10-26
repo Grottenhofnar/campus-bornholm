@@ -1,5 +1,6 @@
 package dk.campusbornholm.entities;
 
+import dk.campusbornholm.config.AppClock;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -47,6 +48,6 @@ public class News {
 
     @PrePersist
     private void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = AppClock.now();
     }
 }

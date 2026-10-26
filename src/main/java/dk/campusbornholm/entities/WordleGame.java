@@ -1,5 +1,6 @@
 package dk.campusbornholm.entities;
 
+import dk.campusbornholm.config.AppClock;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -63,7 +64,7 @@ public class WordleGame {
 
     @PrePersist
     private void onCreate() {
-        this.startedAt = LocalDateTime.now();
+        this.startedAt = AppClock.now();
     }
 
     public void addGuess(Guess guess) {

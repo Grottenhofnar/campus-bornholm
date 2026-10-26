@@ -1,5 +1,6 @@
 package dk.campusbornholm.daos;
 
+import dk.campusbornholm.config.AppClock;
 import dk.campusbornholm.dtos.EventDTO;
 import dk.campusbornholm.entities.Event;
 import dk.campusbornholm.exceptions.ApiException;
@@ -60,7 +61,7 @@ public class EventDAO implements IDAO<EventDTO, Long> {
         if (days < 1) {
             throw new ApiException(400, "Antal dage skal være mindst 1");
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = AppClock.now();
         try (EntityManager em = emf.createEntityManager()) {
             return em.createQuery("""
                             SELECT e FROM Event e
@@ -103,6 +104,29 @@ public class EventDAO implements IDAO<EventDTO, Long> {
                 em.getTransaction().begin();
                 em.remove(findOrThrow(em, id));
                 em.getTransaction().commit();
+            } catch (RuntimeException e) {
+                DAOUtils.rollbackIfActive(em);
+                throw e;
+            }
+        }
+    }
+
+    public int replaceImported(List<EventDTO> dtos) {
+        try (EntityManager em = emf.createEntityManager()) {
+            try {
+                em.getTransaction().begin();
+                em.createQuery("DELETE FROM Event e WHERE e.createdBy IS NULL").executeUpdate();
+                for (EventDTO dto : dtos) {
+                    em.persist(new Event(
+                            dto.title(),
+                            dto.description(),
+                            dto.location(),
+                            dto.startTime(),
+                            dto.endTime(),
+                            null));
+                }
+                em.getTransaction().commit();
+                return dtos.size();
             } catch (RuntimeException e) {
                 DAOUtils.rollbackIfActive(em);
                 throw e;
