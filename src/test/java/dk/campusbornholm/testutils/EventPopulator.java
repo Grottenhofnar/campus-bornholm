@@ -12,22 +12,20 @@ import java.util.Map;
 
 public final class EventPopulator {
 
-    public static final String ADMIN = "testadmin";
+    public static final String ADMIN = UserPopulator.ADMIN;
 
     private EventPopulator() {
     }
 
     public static Map<String, Event> populate(EntityManagerFactory emf) {
-        TestUtils.truncateAll(emf);
+        Map<String, User> users = UserPopulator.populate(emf);
 
         LocalDateTime now = AppClock.now();
         Map<String, Event> events = new LinkedHashMap<>();
 
         try (EntityManager em = emf.createEntityManager()) {
             em.getTransaction().begin();
-
-            User admin = new User(ADMIN, "test12345");
-            em.persist(admin);
+            User admin = em.find(User.class, users.get(ADMIN).getId());
 
             events.put("fredagsbar", new Event("Fredagsbar", "Øl og musik", "Kantinen",
                     now.plusDays(1), now.plusDays(1).plusHours(4), admin));
