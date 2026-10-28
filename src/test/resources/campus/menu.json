@@ -1,0 +1,46 @@
+{
+  "weekNumber": 44,
+  "year": 2026,
+  "items": [
+    {
+      "dayName": "mandag",
+      "dateText": "mandag 26. okt",
+      "date": "2026-10-26",
+      "title": "Cajun pasta",
+      "description": "med kylling",
+      "priceText": "40 kr.",
+      "priceDkk": 40,
+      "imageUrl": "data:image/png;base64,iVBORw0KGgo="
+    },
+    {
+      "dayName": "tirsdag",
+      "dateText": "tirsdag 27. okt",
+      "date": "2026-10-27",
+      "title": "  Lasagne  ",
+      "description": "",
+      "priceText": "45 kr.",
+      "priceDkk": 45.5,
+      "imageUrl": null
+    },
+    {
+      "dayName": "onsdag",
+      "dateText": "onsdag 28. okt",
+      "date": "2026-10-28",
+      "title": "",
+      "description": "Lukket",
+      "priceText": "",
+      "priceDkk": null,
+      "imageUrl": null
+    },
+    {
+      "dayName": "torsdag",
+      "dateText": "torsdag 29. okt",
+      "date": "2026-10-29",
+      "title": "Fiskefrikadeller",
+      "description": "med remoulade",
+      "priceText": "40 kr.",
+      "priceDkk": 40,
+      "newFieldTheyMightAdd": "ignoreres"
+    }
+  ]
+}

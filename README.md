@@ -5,11 +5,25 @@ Bygget med Javalin 6, Hibernate/JPA og PostgreSQL. Menu og aktiviteter hentes fr
 
 ## Kom i gang
 
-1. Start Docker Desktop og databasen: `docker compose up -d`
-2. Kopiér `config.properties.example` til `src/main/resources/config.properties` og udfyld værdierne
+Projektet bruger kursets fælles Postgres-container `db` (`postgres:16.2` på port 5432).
+
+1. Start Docker Desktop, og sørg for at containeren `db` kører: `docker start db`
+2. Opret databasen én gang:
+   ```
+   docker exec -it db psql -U postgres -c "CREATE DATABASE campus_bornholm;"
+   ```
+3. Kopiér `config.properties.example` til `src/main/resources/config.properties` og udfyld værdierne
    (`SECRET_KEY` skal være mindst 32 tegn).
-3. Kør `Main` i IntelliJ – serveren kører på http://localhost:7070/api
-4. Brug `requests.http` til at prøve endpoints.
+4. Kør `Main` i IntelliJ – Hibernate opretter tabellerne, admin-brugeren oprettes, og menu/events importeres.
+   Serveren kører på http://localhost:7070/api
+5. Brug `requests.http` til at prøve endpoints.
+
+Nulstil databasen (stop `Main` først):
+
+```
+docker exec -it db psql -U postgres -c "DROP DATABASE campus_bornholm WITH (FORCE);"
+docker exec -it db psql -U postgres -c "CREATE DATABASE campus_bornholm;"
+```
 
 Alle endpoints og roller: `GET /api/routes`
 

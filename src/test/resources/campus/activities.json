@@ -1,0 +1,23 @@
+[
+  {
+    "title": "AMU Kursus Kran",
+    "startDateTime": "2026-10-26T08:00:00",
+    "endDateTime": "2026-11-06T16:00:00",
+    "location": "Ved Lunden 3",
+    "logoUrl": "https://cafs.dk/Graphics/Logo/logo_cabh.png"
+  },
+  {
+    "title": "AMU Kursus: GrundKonflikt",
+    "startDateTime": "2026-10-27T08:00:00",
+    "endDateTime": "2026-10-27T15:25:00",
+    "location": "",
+    "logoUrl": "https://cafs.dk/Graphics/Logo/logo_cabh.png"
+  },
+  {
+    "title": "Aktivitet uden starttidspunkt",
+    "startDateTime": null,
+    "endDateTime": null,
+    "location": "Merkurvej 10",
+    "logoUrl": null
+  }
+]
