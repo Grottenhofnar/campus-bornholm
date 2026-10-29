@@ -7,7 +7,6 @@ Campus' eget site (cafs.dk) har ingen API, så data hentes automatisk fra et scr
 
 - **Deployet API:** https://campus.etcstudio.dk/api (alle endpoints: https://campus.etcstudio.dk/api/routes)
 - **Source code:** https://github.com/Grottenhofnar/campus-bornholm
-- **Portfolio:** _link indsættes_
 
 ## Architecture
 
