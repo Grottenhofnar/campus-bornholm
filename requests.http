@@ -1,5 +1,3 @@
-@url = http://localhost:7070/api
-
 ### Hello world – virker serveren?
 GET {{url}}/hello
 
@@ -31,13 +29,13 @@ Content-Type: application/json
 
 > {% client.global.set("userToken", response.body.token); %}
 
-### Login som admin (ADMIN_USERNAME / ADMIN_PASSWORD fra config.properties) → gemmes som adminToken
+### Login som admin (password fra http-client.private.env.json) → gemmes som adminToken
 POST {{url}}/auth/login
 Content-Type: application/json
 
 {
   "username": "admin",
-  "password": "3ofKopTUjxePVbGi"
+  "password": "{{adminPassword}}"
 }
 
 > {% client.global.set("adminToken", response.body.token); %}

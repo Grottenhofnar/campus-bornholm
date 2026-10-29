@@ -1,165 +1,140 @@
-# Campus Bornholm – backend
+# Campus Bornholm API
 
-REST API til studerende på Campus Bornholm: ugens menu, events og login.
-Bygget med Javalin 6, Hibernate/JPA og PostgreSQL. Menu og aktiviteter hentes fra campusnews.showcode.dk.
+Et REST API, der samler dagens ret og kommende events for studerende på Campus Bornholm ét sted.
+Campus' eget site (cafs.dk) har ingen API, så data hentes automatisk fra et scrapet JSON-API og gøres tilgængeligt med login og roller.
 
-## Kom i gang
+## Links
 
-Projektet bruger kursets fælles Postgres-container `db` (`postgres:16.2` på port 5432).
+- **Deployet API:** https://campus.etcstudio.dk/api (alle endpoints: https://campus.etcstudio.dk/api/routes)
+- **Source code:** https://github.com/Grottenhofnar/campus-bornholm
+- **Portfolio:** _link indsættes_
 
-1. Start Docker Desktop, og sørg for at containeren `db` kører: `docker start db`
-2. Opret databasen én gang:
-   ```
-   docker exec -it db psql -U postgres -c "CREATE DATABASE campus_bornholm;"
-   ```
-3. Kopiér `config.properties.example` til `src/main/resources/config.properties` og udfyld værdierne
-   (`SECRET_KEY` skal være mindst 32 tegn).
-4. Kør `Main` i IntelliJ – Hibernate opretter tabellerne, admin-brugeren oprettes, og menu/events importeres.
-   Serveren kører på http://localhost:7070/api
-5. Brug `requests.http` til at prøve endpoints.
+## Architecture
 
-Nulstil databasen (stop `Main` først):
+### System Overview
 
-```
-docker exec -it db psql -U postgres -c "DROP DATABASE campus_bornholm WITH (FORCE);"
-docker exec -it db psql -U postgres -c "CREATE DATABASE campus_bornholm;"
-```
+Backend-only REST API i Java 17, bygget i lag:
 
-Alle endpoints og roller: `GET /api/routes`
-
-## Konfiguration
-
-| Nøgle | Eksempel | Bruges til |
+| Lag | Pakke | Ansvar |
 |---|---|---|
-| `CONNECTION_STR` | `jdbc:postgresql://localhost:5432/` | Database-URL uden databasenavn |
-| `DB_NAME` | `campus_bornholm` | Databasenavn |
-| `DB_USERNAME` / `DB_PASSWORD` | `postgres` / `postgres` | Database-login |
-| `ISSUER` | `Campus Bornholm` | Udsteder af JWT |
-| `TOKEN_EXPIRE_TIME` | `86400000` | Tokenets levetid i ms (24 timer) |
-| `SECRET_KEY` | 32+ tegn | Signering af JWT |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / … | Admin-bruger der oprettes ved opstart |
+| Web | `config` (`ApplicationConfig`, `Routes`), `controllers`, `security` | Javalin 6: routing, validering, JSON, CORS, JWT og roller |
+| Service | `services` | Henter menu og events fra campus-API'et med `HttpClient` + Jackson og importerer dem med tråde |
+| Data | `daos`, `dtos`, `entities` | JPA/Hibernate 6.6 med HikariCP mod PostgreSQL 16.2. DAO'erne returnerer DTO'er |
 
-Lokalt læses de fra `config.properties`. På serveren sættes de som miljøvariabler, som vinder over filen.
+Teknologier: Javalin 6 · Hibernate/JPA · PostgreSQL · Jackson · Lombok · TokenSecurity (JWT) + jBCrypt · JUnit 5, Hamcrest, RestAssured, Testcontainers · Docker, GitHub Actions, Caddy, Watchtower.
 
-## API-dokumentation
+### Architecture Diagram
 
-Base-URL: `http://localhost:7070/api`. Beskyttede endpoints kræver headeren `Authorization: Bearer <token>`.
-
-Alle fejl har samme format:
-
-```json
-{ "status": 404, "msg": "Event med id 99 findes ikke", "timestamp": "2026-10-26T21:30:00" }
+```mermaid
+flowchart LR
+    Client[Klient<br/>requests.http / RestAssured] -->|HTTPS| Caddy
+    subgraph Droplet
+        Caddy -->|:7070| API[campusAPI<br/>Javalin]
+        API --> DB[(PostgreSQL)]
+        Watchtower -.->|opdaterer| API
+    end
+    API -->|hver 6. time| Campus[campusnews.showcode.dk<br/>/menu, /activities]
+    GitHub[GitHub Actions<br/>byg + test] -->|image| Hub[Docker Hub]
+    Hub -.-> Watchtower
 ```
 
-### Auth
+### Key Design Decisions
 
-| Method | URL | Request Body (JSON) | Response (JSON) | Error (e) |
+- **Lag og DTO'er:** Controllers kender kun DTO'er (records). DAO'erne laver entitet → DTO, mens `EntityManager` er åben, så der hverken opstår `LazyInitializationException`, cirkulære referencer eller lækkede passwords.
+- **Eksternt API gemmes lokalt:** `CampusImportService` henter menu og aktiviteter ved opstart og hver 6. time (`ScheduledExecutorService`). De to kald køres samtidig (`ExecutorService` + `CompletableFuture`). API'et virker derfor, selvom campus-API'et er nede.
+- **Import uden dubletter:** Retter erstattes pr. dato. Importerede events har ingen opretter og erstattes samlet, så events oprettet af admin aldrig røres.
+- **Security:** JWT (HS256) via `TokenSecurity`, passwords hashes med BCrypt. `authenticate` og `authorize` kører som `beforeMatched`-filtre, og hver route har en rolle (`ANYONE`, `USER`, `ADMIN`). Opretteren af et event kommer fra tokenet, ikke fra body.
+- **Fejlhåndtering:** Én `ApiException` med statuskode. Globale handlers i `ApplicationConfig` giver altid samme JSON: `{ "status", "msg", "timestamp" }`. Valideringsfejl → 400, uventede fejl → 500 uden stacktrace til klienten.
+- **Konfiguration:** `config.properties` lokalt, miljøvariabler på serveren (`CONNECTION_STR`, `DB_NAME`, `SECRET_KEY`, …). Hemmeligheder ligger aldrig i git.
+- **Delvis opdatering = PATCH:** Kun felter, der sendes med, ændres.
+- **Tidszone:** `AppClock` bruger `Europe/Copenhagen`, så "i dag" er rigtig, selvom serveren kører UTC.
+
+## Data Model
+
+### ERD
+
+ERD genereret af pgAdmin ud fra databasen (`campus_bornholm`):
+
+![ERD](docs/erd.png)
+
+### Important Entities
+
+| Entitet | Felter | Relationer |
+|---|---|---|
+| **User** (`users`) | id, username (unik), password (BCrypt), createdAt | `@ManyToMany` → Role via `user_roles` (EAGER) |
+| **Role** (`roles`) | name (PK: `USER`, `ADMIN`) | `@ManyToMany(mappedBy = "roles")` |
+| **Event** (`events`) | id, title, description, location, startTime, endTime | `@ManyToOne` → User (createdBy, valgfri) |
+| **Dish** (`dishes`) | id, name, description, price, date, sourceUrl | Ingen – fyldes af importen |
+
+## API Documentation
+
+Base-URL: `https://campus.etcstudio.dk/api`. Beskyttede endpoints kræver `Authorization: Bearer <token>`.
+
+| Method | URL | Request Body (JSON) | Response (JSON) | Rolle |
 |---|---|---|---|---|
-| GET | `/auth/healthcheck` | | `{"msg": "API is up and running"}` | |
-| POST | `/auth/register` | `{"username": String, "password": String}` | (e1) `201` | (e2) 400, (e3) 409 |
-| POST | `/auth/login` | `{"username": String, "password": String}` | (e1) `200` | (e2) 400, (e4) 401 |
-| GET | `/auth/me` | | `{"username": String, "roles": [String]}` | (e5) 401 |
+| GET | `/auth/healthcheck` | | `{"msg": "API is up and running"}` | ANYONE |
+| POST | `/auth/register` | `{"username": String, "password": String}` | `201` token (e1) | ANYONE |
+| POST | `/auth/login` | `{"username": String, "password": String}` | `200` token (e1) | ANYONE |
+| GET | `/auth/me` | | `{"username": String, "roles": [String]}` | USER |
+| GET | `/menu/today` | | `[dish]` (d1) | ANYONE |
+| GET | `/menu/week` | | `{"weekNumber", "from", "to", "dishes": [dish]}` | ANYONE |
+| GET | `/events?days=14` | | `[event]` (v1), de næste `days` dage (1–365) | ANYONE |
+| GET | `/events/{id}` | | `event` (v1) | ANYONE |
+| POST | `/events` | `{"title", "startTime", "description"?, "location"?, "endTime"?}` | `201` event (v1) | ADMIN |
+| PATCH | `/events/{id}` | felterne fra POST, alle valgfrie | `200` event (v1) | ADMIN |
+| DELETE | `/events/{id}` | | `204` | ADMIN |
 
-### Events
+```
+(e1) Token: { "token": String, "username": String, "roles": [String] }
+(v1) Event: { "id": Number, "title": String, "description": String, "location": String,
+              "startTime": "2026-10-30T16:00:00", "endTime": "2026-10-30T22:00:00", "createdBy": String | null }
+(d1) Dish:  { "id": Number, "name": String, "description": String, "price": Number,
+              "date": "2026-10-26", "sourceUrl": String }
+```
 
-| Method | URL | Request Body (JSON) | Response (JSON) | Error (e) |
-|---|---|---|---|---|
-| GET | `/events?days=14` | | `[event, ...]` (v1), de næste `days` dage (standard 14, max 365) | (e2) 400 |
-| GET | `/events/{id}` | | `event` (v1) | (e6) 404 |
-| POST | `/events` | `{"title": String, "description"?: String, "location"?: String, "startTime": "2026-10-30T16:00:00", "endTime"?: "..."}` | `event` (v1) `201` | (e2) 400, (e5) 401, (e7) 403 |
-| PATCH | `/events/{id}` | samme felter som POST, alle valgfrie | `event` (v1) | (e2) 400, (e5) 401, (e7) 403, (e6) 404 |
-| DELETE | `/events/{id}` | | `204` | (e5) 401, (e7) 403, (e6) 404 |
+**Fejl** – samme format overalt: `{ "status": 404, "msg": "Event med id 99 findes ikke", "timestamp": "…" }`
 
-### Menu
-
-| Method | URL | Request Body (JSON) | Response (JSON) | Error (e) |
-|---|---|---|---|---|
-| GET | `/menu/today` | | `[dish, ...]` (d1) | |
-| GET | `/menu/week` | | `{"weekNumber": 44, "from": "2026-10-26", "to": "2026-10-30", "dishes": [dish, ...]}` (d1) | |
-
-### Roller
-
-| Rolle | Adgang |
+| Status | Hvornår |
 |---|---|
-| ANYONE | `/hello`, `/auth/healthcheck`, `/auth/register`, `/auth/login`, alle `GET` på events og menu |
-| USER | `/auth/me` |
-| ADMIN | `POST`, `PATCH`, `DELETE` på events |
+| 400 | Ugyldigt input, fx manglende titel, slut før start, ugyldig JSON |
+| 401 | Intet/ugyldigt token, eller forkert brugernavn/password |
+| 403 | Gyldigt token, men forkert rolle |
+| 404 | Ukendt id eller route |
+| 409 | Brugernavnet er optaget |
 
-### Response-formater
+Alle requests kan prøves i `requests.http`.
 
-```
-(e1) Token:  { "token": String, "username": String, "roles": [String] }
+## User Stories
 
-(v1) Event:  { "id": Number, "title": String, "description": String, "location": String,
-               "startTime": "2026-10-30T16:00:00", "endTime": "2026-10-30T22:00:00",
-               "createdBy": String | null }
-
-(d1) Dish:   { "id": Number, "name": String, "description": String, "price": Number,
-               "date": "2026-10-26", "sourceUrl": String }
-```
-
-### Fejl
-
-| | Status | Eksempel på `msg` |
+| # | User story | Endpoint |
 |---|---|---|
-| (e2) | 400 | `title skal udfyldes` / `Body er ikke gyldig JSON eller har forkerte typer` |
-| (e3) | 409 | `Brugernavnet 'elias' er optaget` |
-| (e4) | 401 | `Forkert brugernavn eller password` |
-| (e5) | 401 | `Authorization-header mangler` / `Ugyldigt eller udløbet token` |
-| (e6) | 404 | `Event med id 99 findes ikke` |
-| (e7) | 403 | `Kræver en af rollerne [ADMIN], men brugeren har [USER]` |
+| US1 | Som gæst vil jeg kunne oprette en bruger, så jeg kan logge ind. | `POST /auth/register` |
+| US2 | Som bruger vil jeg kunne logge ind, så jeg får adgang til det, der kræver login. | `POST /auth/login` |
+| US3 | Som admin vil jeg have særlige rettigheder, så kun admins kan ændre indhold. | roller på routes |
+| US4 | Som studerende vil jeg se dagens ret, så jeg ved om jeg skal have madpakke med. | `GET /menu/today` |
+| US5 | Som studerende vil jeg se menuen for hele ugen, så jeg kan planlægge min uge. | `GET /menu/week` |
+| US6 | Som admin vil jeg have at menu og events hentes automatisk fra campus, så ingen skal taste dem ind. | import med tråde |
+| US7 | Som studerende vil jeg se hvad der sker de næste to uger, så jeg kan planlægge min tid. | `GET /events?days=14` |
+| US8 | Som admin vil jeg oprette, rette og slette events, så oversigten er korrekt. | `POST/PATCH/DELETE /events` |
 
-## Deployment
+## Development Notes
 
-Push til `master` → GitHub Actions bygger og tester → image pushes til Docker Hub (`<bruger>/campus_bornholm_api:latest`) → Watchtower på dropletten henter det nye image inden for 5 minutter.
+### Kørsel lokalt
 
-Filerne til dropletten ligger i `deployment/`:
+1. Start kursets Postgres-container: `docker start db`, og opret databasen én gang:
+   `docker exec -it db psql -U postgres -c "CREATE DATABASE campus_bornholm;"`
+2. Kopiér `config.properties.example` til `src/main/resources/config.properties` og udfyld værdierne.
+3. Kør `Main` – serveren starter på http://localhost:7070/api, opretter admin-brugeren og importerer menu og events.
+4. Tests: `mvn test` (Docker skal køre). Én testklasse af hver slags: `CampusApiServiceTest` (unit), `EventDAOTest` (DAO + Testcontainers) og `EventControllerTest` (RestAssured med login, 401 og 403).
 
-| Fil | Indhold |
-|---|---|
-| `docker-compose.yml` | `db` (Postgres 16.2), `campusAPI`, `caddy` (HTTPS) og `watchtower` |
-| `Caddyfile` | Sender `https://$DOMAIN` videre til `campusAPI:7070` |
-| `.env.example` | Skabelon til `.env` med domæne, Docker Hub-navn og hemmeligheder. Den rigtige `.env` findes kun på serveren |
+### Deployment
 
-På dropletten (som brugeren `jetty`):
+Push til `master` → GitHub Actions bygger og tester → image til Docker Hub → Watchtower på dropletten henter det nye image → Caddy giver HTTPS. Filerne til serveren ligger i `deployment/` (`docker-compose.yml`, `Caddyfile`, `.env.example`).
 
-```
-mkdir -p ~/deployment && cd ~/deployment
-nano docker-compose.yml   # indhold fra deployment/docker-compose.yml
-nano Caddyfile            # indhold fra deployment/Caddyfile
-nano .env                 # udfyld ud fra deployment/.env.example
-docker compose up -d
-docker ps
-```
+### Udfordringer og læring
 
-Tjek: `https://<DOMAIN>/api/auth/healthcheck`
-
-## Tests
-
-```
-mvn test
-```
-
-Én testklasse af hver slags:
-
-| Klasse | Type | Database |
-|---|---|---|
-| `CampusApiServiceTest` | Unit test af mapping fra campus-API'et | Nej |
-| `EventDAOTest` | DAO-integrationstest | Testcontainers (`HibernateTestConfig`) |
-| `EventControllerTest` | RestAssured inkl. login, 401 og 403 | Testcontainers |
-
-Docker skal køre, ellers springes database-testene over.
-
-## Struktur
-
-```
-dk.campusbornholm
-├── config/        AppProperties, AppClock, ApplicationConfig, HibernateConfig, Routes
-├── controllers/   EventController, MenuController
-├── daos/          IDAO, EventDAO, DishDAO, UserDAO
-├── dtos/          records der sendes ind/ud (external/ = campusnews-API'et)
-├── entities/      User, Role, Event, Dish
-├── exceptions/    ApiException
-├── security/      SecurityController, SecurityRoutes, ISecurityDAO, ISecurityUser
-└── services/      CampusApiService, CampusImportService
-```
+- **Postgres i Docker:** Password og databasenavn læses kun første gang datamappen oprettes. Det kostede en fejlsøgning med "password authentication failed", selvom `.env` var rigtig.
+- **DNS:** En ny A-record kan tage op til 30 min., fordi DNS-servere husker "findes ikke". Kan testes uden om DNS med `curl --resolve`.
+- **Brugere fra før hashing:** Brugere oprettet før BCrypt kunne ikke logge ind, fordi BCrypt ikke kan tjekke et password i klar tekst. Databasen måtte nulstilles.
+- **Scope:** Projektet startede med nyheder og Wordle og blev skåret ned til det, kravene kræver. Mindre kode betød mere tid til tests og deployment.
+- **Gemt data fra API:** Data gemmes lokalt og importeres hver 6. time i stedet for at blive hentet ved hvert request. Kommer der ingen data, beholdes de gamle.
