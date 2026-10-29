@@ -27,7 +27,7 @@ Teknologier: Javalin 6 · Hibernate/JPA · PostgreSQL · Jackson · Lombok · To
 
 ```mermaid
 flowchart LR
-    Client[Klient<br/>requests.http / RestAssured] -->|HTTPS| Caddy
+    Client[Klient<br/>requests.http / RestAssured] -->|HTTPS| Caddy[Caddy<br/>campus.etcstudio.dk]
     subgraph Droplet
         Caddy -->|:7070| API[campusAPI<br/>Javalin]
         API --> DB[(PostgreSQL)]
