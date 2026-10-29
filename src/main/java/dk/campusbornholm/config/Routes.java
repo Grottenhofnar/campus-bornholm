@@ -2,10 +2,8 @@ package dk.campusbornholm.config;
 
 import dk.campusbornholm.controllers.EventController;
 import dk.campusbornholm.controllers.MenuController;
-import dk.campusbornholm.controllers.NewsController;
 import dk.campusbornholm.daos.DishDAO;
 import dk.campusbornholm.daos.EventDAO;
-import dk.campusbornholm.daos.NewsDAO;
 import dk.campusbornholm.security.SecurityController;
 import dk.campusbornholm.security.SecurityRoutes;
 import dk.campusbornholm.security.SecurityRoutes.Role;
@@ -23,13 +21,11 @@ import static io.javalin.apibuilder.ApiBuilder.post;
 public class Routes {
 
     private final SecurityRoutes securityRoutes;
-    private final NewsController newsController;
     private final EventController eventController;
     private final MenuController menuController;
 
     public Routes(EntityManagerFactory emf, SecurityController securityController) {
         this.securityRoutes = new SecurityRoutes(securityController);
-        this.newsController = new NewsController(new NewsDAO(emf));
         this.eventController = new EventController(new EventDAO(emf));
         this.menuController = new MenuController(new DishDAO(emf));
     }
@@ -39,16 +35,6 @@ public class Routes {
             get("/hello", ctx -> ctx.json(Map.of("msg", "hello fra Campus Bornholm")), Role.ANYONE);
 
             securityRoutes.getSecurityRoutes().addEndpoints();
-
-            path("/news", () -> {
-                get(newsController::getAll, Role.ANYONE);
-                post(newsController::create, Role.ADMIN);
-                path("/{id}", () -> {
-                    get(newsController::getById, Role.ANYONE);
-                    patch(newsController::update, Role.ADMIN);
-                    delete(newsController::delete, Role.ADMIN);
-                });
-            });
 
             path("/events", () -> {
                 get(eventController::getUpcoming, Role.ANYONE);

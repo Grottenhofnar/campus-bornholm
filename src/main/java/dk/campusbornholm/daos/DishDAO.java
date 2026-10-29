@@ -11,44 +11,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class DishDAO implements IDAO<DishDTO, Long> {
+public class DishDAO {
+
     private final EntityManagerFactory emf;
 
     public DishDAO(EntityManagerFactory emf) {
         this.emf = emf;
-    }
-
-    @Override
-    public DishDTO create(DishDTO dto) {
-        try (EntityManager em = emf.createEntityManager()) {
-            try {
-                em.getTransaction().begin();
-                Dish dish = toEntity(dto);
-                em.persist(dish);
-                em.getTransaction().commit();
-                return new DishDTO(dish);
-            } catch (RuntimeException e) {
-                DAOUtils.rollbackIfActive(em);
-                throw e;
-            }
-        }
-    }
-
-    @Override
-    public DishDTO getById(Long id) {
-        try (EntityManager em = emf.createEntityManager()) {
-            return new DishDTO(findOrThrow(em, id));
-        }
-    }
-
-    @Override
-    public List<DishDTO> getAll() {
-        try (EntityManager em = emf.createEntityManager()) {
-            return em.createQuery("SELECT d FROM Dish d ORDER BY d.date", Dish.class)
-                    .getResultStream()
-                    .map(DishDTO::new)
-                    .toList();
-        }
     }
 
     public List<DishDTO> getByDate(LocalDate date) {
@@ -83,7 +51,9 @@ public class DishDAO implements IDAO<DishDTO, Long> {
                         .setParameter("dates", dates)
                         .executeUpdate();
 
-                List<Dish> dishes = dtos.stream().map(this::toEntity).toList();
+                List<Dish> dishes = dtos.stream()
+                        .map(dto -> new Dish(dto.name(), dto.description(), dto.price(), dto.date(), dto.sourceUrl()))
+                        .toList();
                 dishes.forEach(em::persist);
 
                 em.getTransaction().commit();
@@ -93,51 +63,5 @@ public class DishDAO implements IDAO<DishDTO, Long> {
                 throw e;
             }
         }
-    }
-
-    @Override
-    public DishDTO update(Long id, DishDTO dto) {
-        try (EntityManager em = emf.createEntityManager()) {
-            try {
-                em.getTransaction().begin();
-                Dish dish = findOrThrow(em, id);
-                if (dto.name() != null) dish.setName(dto.name());
-                if (dto.description() != null) dish.setDescription(dto.description());
-                if (dto.price() != null) dish.setPrice(dto.price());
-                if (dto.date() != null) dish.setDate(dto.date());
-                if (dto.sourceUrl() != null) dish.setSourceUrl(dto.sourceUrl());
-                em.getTransaction().commit();
-                return new DishDTO(dish);
-            } catch (RuntimeException e) {
-                DAOUtils.rollbackIfActive(em);
-                throw e;
-            }
-        }
-    }
-
-    @Override
-    public void delete(Long id) {
-        try (EntityManager em = emf.createEntityManager()) {
-            try {
-                em.getTransaction().begin();
-                em.remove(findOrThrow(em, id));
-                em.getTransaction().commit();
-            } catch (RuntimeException e) {
-                DAOUtils.rollbackIfActive(em);
-                throw e;
-            }
-        }
-    }
-
-    private Dish toEntity(DishDTO dto) {
-        return new Dish(dto.name(), dto.description(), dto.price(), dto.date(), dto.sourceUrl());
-    }
-
-    private Dish findOrThrow(EntityManager em, Long id) {
-        Dish dish = em.find(Dish.class, id);
-        if (dish == null) {
-            throw new ApiException(404, "Ret med id " + id + " findes ikke");
-        }
-        return dish;
     }
 }

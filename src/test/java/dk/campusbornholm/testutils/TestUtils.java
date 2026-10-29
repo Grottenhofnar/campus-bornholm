@@ -16,8 +16,7 @@ public final class TestUtils {
         try (EntityManager em = emf.createEntityManager()) {
             em.getTransaction().begin();
             em.createNativeQuery("""
-                    TRUNCATE TABLE guesses, wordle_games, words, news, events, dishes,
-                                   user_roles, users, roles
+                    TRUNCATE TABLE events, dishes, user_roles, users, roles
                     RESTART IDENTITY CASCADE
                     """).executeUpdate();
             em.getTransaction().commit();

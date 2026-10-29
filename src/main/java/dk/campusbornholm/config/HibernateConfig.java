@@ -2,12 +2,8 @@ package dk.campusbornholm.config;
 
 import dk.campusbornholm.entities.Dish;
 import dk.campusbornholm.entities.Event;
-import dk.campusbornholm.entities.Guess;
-import dk.campusbornholm.entities.News;
 import dk.campusbornholm.entities.Role;
 import dk.campusbornholm.entities.User;
-import dk.campusbornholm.entities.Word;
-import dk.campusbornholm.entities.WordleGame;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.cfg.Configuration;
 
@@ -53,11 +49,7 @@ public final class HibernateConfig {
     private static void registerEntities(Configuration configuration) {
         configuration.addAnnotatedClass(User.class);
         configuration.addAnnotatedClass(Role.class);
-        configuration.addAnnotatedClass(News.class);
         configuration.addAnnotatedClass(Event.class);
         configuration.addAnnotatedClass(Dish.class);
-        configuration.addAnnotatedClass(Word.class);
-        configuration.addAnnotatedClass(WordleGame.class);
-        configuration.addAnnotatedClass(Guess.class);
     }
 }

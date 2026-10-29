@@ -8,9 +8,7 @@ import dk.campusbornholm.security.ISecurityDAO;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.NoResultException;
-import jakarta.persistence.PersistenceException;
 
-import java.util.List;
 import java.util.Optional;
 
 public class UserDAO implements ISecurityDAO {
@@ -99,41 +97,6 @@ public class UserDAO implements ISecurityDAO {
         }
         createUser(username, password);
         return addUserRole(username, ROLE_ADMIN);
-    }
-
-    public UserDTO getByUsername(String username) {
-        try (EntityManager em = emf.createEntityManager()) {
-            return new UserDTO(DAOUtils.findUserOrThrow(em, username));
-        }
-    }
-
-    public List<UserDTO> getAll() {
-        try (EntityManager em = emf.createEntityManager()) {
-            return em.createQuery(
-                            "SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles ORDER BY u.username", User.class)
-                    .getResultStream()
-                    .map(UserDTO::new)
-                    .toList();
-        }
-    }
-
-    public void delete(String username) {
-        try (EntityManager em = emf.createEntityManager()) {
-            try {
-                em.getTransaction().begin();
-                User user = DAOUtils.findUserOrThrow(em, username);
-                user.getRoles().forEach(role -> role.getUsers().remove(user));
-                user.getRoles().clear();
-                em.remove(user);
-                em.getTransaction().commit();
-            } catch (ApiException e) {
-                DAOUtils.rollbackIfActive(em);
-                throw e;
-            } catch (PersistenceException e) {
-                DAOUtils.rollbackIfActive(em);
-                throw new ApiException(409, "Brugeren '" + username + "' har stadig data og kan ikke slettes");
-            }
-        }
     }
 
     private Optional<User> findByUsername(EntityManager em, String username) {

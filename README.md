@@ -1,6 +1,6 @@
 # Campus Bornholm – backend
 
-REST API til studerende på Campus Bornholm: ugens menu, events, nyheder og login.
+REST API til studerende på Campus Bornholm: ugens menu, events og login.
 Bygget med Javalin 6, Hibernate/JPA og PostgreSQL. Menu og aktiviteter hentes fra campusnews.showcode.dk.
 
 ## Kom i gang
@@ -60,17 +60,6 @@ Alle fejl har samme format:
 | POST | `/auth/login` | `{"username": String, "password": String}` | (e1) `200` | (e2) 400, (e4) 401 |
 | GET | `/auth/me` | | `{"username": String, "roles": [String]}` | (e5) 401 |
 
-### News
-
-| Method | URL | Request Body (JSON) | Response (JSON) | Error (e) |
-|---|---|---|---|---|
-| GET | `/news` | | `[news, news, ...]` (n1), nyeste først | |
-| GET | `/news?limit=3` | | `[news, ...]` (n1) | (e2) 400 |
-| GET | `/news/{id}` | | `news` (n1) | (e6) 404 |
-| POST | `/news` | `{"title": String, "content": String}` | `news` (n1) `201` | (e2) 400, (e5) 401, (e7) 403 |
-| PATCH | `/news/{id}` | `{"title"?: String, "content"?: String}` | `news` (n1) | (e2) 400, (e5) 401, (e7) 403, (e6) 404 |
-| DELETE | `/news/{id}` | | `204` | (e5) 401, (e7) 403, (e6) 404 |
-
 ### Events
 
 | Method | URL | Request Body (JSON) | Response (JSON) | Error (e) |
@@ -92,17 +81,14 @@ Alle fejl har samme format:
 
 | Rolle | Adgang |
 |---|---|
-| ANYONE | `/hello`, `/auth/healthcheck`, `/auth/register`, `/auth/login`, alle `GET` på news, events og menu |
+| ANYONE | `/hello`, `/auth/healthcheck`, `/auth/register`, `/auth/login`, alle `GET` på events og menu |
 | USER | `/auth/me` |
-| ADMIN | `POST`, `PATCH`, `DELETE` på news og events |
+| ADMIN | `POST`, `PATCH`, `DELETE` på events |
 
 ### Response-formater
 
 ```
 (e1) Token:  { "token": String, "username": String, "roles": [String] }
-
-(n1) News:   { "id": Number, "title": String, "content": String,
-               "createdAt": "2026-10-26T20:15:00", "authorName": String }
 
 (v1) Event:  { "id": Number, "title": String, "description": String, "location": String,
                "startTime": "2026-10-30T16:00:00", "endTime": "2026-10-30T22:00:00",
@@ -120,8 +106,33 @@ Alle fejl har samme format:
 | (e3) | 409 | `Brugernavnet 'elias' er optaget` |
 | (e4) | 401 | `Forkert brugernavn eller password` |
 | (e5) | 401 | `Authorization-header mangler` / `Ugyldigt eller udløbet token` |
-| (e6) | 404 | `Nyhed med id 99 findes ikke` |
+| (e6) | 404 | `Event med id 99 findes ikke` |
 | (e7) | 403 | `Kræver en af rollerne [ADMIN], men brugeren har [USER]` |
+
+## Deployment
+
+Push til `master` → GitHub Actions bygger og tester → image pushes til Docker Hub (`<bruger>/campus_bornholm_api:latest`) → Watchtower på dropletten henter det nye image inden for 5 minutter.
+
+Filerne til dropletten ligger i `deployment/`:
+
+| Fil | Indhold |
+|---|---|
+| `docker-compose.yml` | `db` (Postgres 16.2), `campusAPI`, `caddy` (HTTPS) og `watchtower` |
+| `Caddyfile` | Sender `https://$DOMAIN` videre til `campusAPI:7070` |
+| `.env.example` | Skabelon til `.env` med domæne, Docker Hub-navn og hemmeligheder. Den rigtige `.env` findes kun på serveren |
+
+På dropletten (som brugeren `jetty`):
+
+```
+mkdir -p ~/deployment && cd ~/deployment
+nano docker-compose.yml   # indhold fra deployment/docker-compose.yml
+nano Caddyfile            # indhold fra deployment/Caddyfile
+nano .env                 # udfyld ud fra deployment/.env.example
+docker compose up -d
+docker ps
+```
+
+Tjek: `https://<DOMAIN>/api/auth/healthcheck`
 
 ## Tests
 
@@ -129,18 +140,26 @@ Alle fejl har samme format:
 mvn test
 ```
 
-Test-databasen startes automatisk med Testcontainers (`HibernateTestConfig`) – Docker skal køre, ellers springes database-testene over.
+Én testklasse af hver slags:
+
+| Klasse | Type | Database |
+|---|---|---|
+| `CampusApiServiceTest` | Unit test af mapping fra campus-API'et | Nej |
+| `EventDAOTest` | DAO-integrationstest | Testcontainers (`HibernateTestConfig`) |
+| `EventControllerTest` | RestAssured inkl. login, 401 og 403 | Testcontainers |
+
+Docker skal køre, ellers springes database-testene over.
 
 ## Struktur
 
 ```
 dk.campusbornholm
 ├── config/        AppProperties, AppClock, ApplicationConfig, HibernateConfig, Routes
-├── controllers/   NewsController, EventController, MenuController
-├── daos/          IDAO + DAO'er
+├── controllers/   EventController, MenuController
+├── daos/          IDAO, EventDAO, DishDAO, UserDAO
 ├── dtos/          records der sendes ind/ud (external/ = campusnews-API'et)
-├── entities/      JPA-entiteter
+├── entities/      User, Role, Event, Dish
 ├── exceptions/    ApiException
 ├── security/      SecurityController, SecurityRoutes, ISecurityDAO, ISecurityUser
-└── services/      CampusApiService, CampusImportService, WordleService
+└── services/      CampusApiService, CampusImportService
 ```

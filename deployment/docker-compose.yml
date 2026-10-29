@@ -1,0 +1,94 @@
+services:
+
+  db:
+    image: postgres:16.2
+    container_name: db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      TZ: Europe/Copenhagen
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  campusAPI:
+    image: ${DOCKERHUB_USERNAME}/campus_bornholm_api:latest
+    container_name: campusAPI
+    restart: unless-stopped
+    environment:
+      DEPLOYED: ${DEPLOYED}
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CONNECTION_STR: ${CONNECTION_STR}
+      SECRET_KEY: ${SECRET_KEY}
+      ISSUER: ${ISSUER}
+      TOKEN_EXPIRE_TIME: ${TOKEN_EXPIRE_TIME}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      TZ: Europe/Copenhagen
+    volumes:
+      - ./logs:/logs
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:7070/api/auth/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  caddy:
+    image: caddy:2.7.6
+    container_name: caddy
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./site:/srv
+      - ./caddy_data:/data
+      - ./caddy_config:/config
+    networks:
+      - frontend
+    depends_on:
+      campusAPI:
+        condition: service_healthy
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_POLL_INTERVAL: 300
+      DOCKER_API_VERSION: "1.44"
+    networks:
+      - frontend
+    command: campusAPI
+    depends_on:
+      campusAPI:
+        condition: service_healthy
+
+networks:
+  backend:
+  frontend:
