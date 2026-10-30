@@ -1,6 +1,6 @@
 # Campus Bornholm API
 
-Et REST API, der samler dagens ret og kommende events for studerende på Campus Bornholm ét sted.
+Et backend API, der samler dagens ret og kommende events for studerende på Campus Bornholm ét sted.
 Campus' eget site (cafs.dk) har ingen API, så data hentes automatisk fra et scrapet JSON-API og gøres tilgængeligt med login og roller.
 
 ## Links
